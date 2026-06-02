@@ -466,7 +466,7 @@ export default function CheckoutModal({ isOpen, onClose, preselectedWebsiteTitle
         ordersSubscription.unsubscribe();
       }
     };
-  }, [isOpen, activeOrder, searchedOrder, searchedOrdersList]);
+  }, [isOpen, activeOrder, searchedOrder, searchedOrdersList, isSupabaseOrdersConfigured]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import supabaseConfig from "../supabase_config.json";
 import { safeLocalStorage } from "../utils/safeStorage";
 
@@ -8,36 +8,52 @@ const getSavedCredential = (key: string): string => {
   return "";
 };
 
-// General Supabase Config
-const supabaseUrl = (
-  getSavedCredential("VITE_SUPABASE_URL") ||
-  ((supabaseConfig as any).VITE_SUPABASE_URL || "") ||
-  (((import.meta as any).env?.VITE_SUPABASE_URL) || "")
-).trim();
+export let supabaseUrl = "";
+export let supabaseAnonKey = "";
+export let isSupabaseConfigured = false;
+export let supabase: SupabaseClient | null = null;
+export let isSupabaseOrdersConfigured = false;
+export let supabaseOrders: SupabaseClient | null = null;
 
-const supabaseAnonKey = (
-  getSavedCredential("VITE_SUPABASE_ANON_KEY") ||
-  ((supabaseConfig as any).VITE_SUPABASE_ANON_KEY || "") ||
-  (((import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || "")
-).trim();
+export function initializeSupabase() {
+  supabaseUrl = (
+    getSavedCredential("VITE_SUPABASE_URL") ||
+    ((supabaseConfig as any).VITE_SUPABASE_URL || "") ||
+    (((import.meta as any).env?.VITE_SUPABASE_URL) || "")
+  ).trim();
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
-  supabaseUrl !== "YOUR_SUPABASE_URL_HERE" &&
-  supabaseUrl.length > 0
-);
+  supabaseAnonKey = (
+    getSavedCredential("VITE_SUPABASE_ANON_KEY") ||
+    ((supabaseConfig as any).VITE_SUPABASE_ANON_KEY || "") ||
+    (((import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || "")
+  ).trim();
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-      },
-    })
-  : null;
+  isSupabaseConfigured = Boolean(
+    supabaseUrl && 
+    supabaseAnonKey && 
+    supabaseUrl !== "YOUR_SUPABASE_URL_HERE" &&
+    supabaseUrl.length > 0
+  );
 
-// Dedicated Orders Supabase Config - Now fully unified with the primary Supabase client to simplify setups
-export const isSupabaseOrdersConfigured = isSupabaseConfigured;
-export const supabaseOrders = supabase;
+  supabase = isSupabaseConfigured
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+        },
+      })
+    : null;
+
+  isSupabaseOrdersConfigured = isSupabaseConfigured;
+  supabaseOrders = supabase;
+
+  console.log("Supabase client initialized: ", {
+    url: supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : "none",
+    isConfigured: isSupabaseConfigured
+  });
+}
+
+// Perform initial initialization on load
+initializeSupabase();
+
 
 

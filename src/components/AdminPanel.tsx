@@ -38,7 +38,7 @@ import {
   Bell
 } from "lucide-react";
 import { useContent } from "../context/ContentContext";
-import { isSupabaseConfigured, supabase, isSupabaseOrdersConfigured, supabaseOrders } from "../lib/supabase";
+import { isSupabaseConfigured, supabase, isSupabaseOrdersConfigured, supabaseOrders, initializeSupabase } from "../lib/supabase";
 import { WebsiteProduct, Service, PortfolioItem, Testimonial, TeamMember, ContactConfig } from "../types";
 import { safeLocalStorage, safeSessionStorage } from "../utils/safeStorage";
 import { Order, OrderStatus } from "./CheckoutModal";
@@ -690,6 +690,9 @@ export default function AdminPanel({ isOpen, onClose, isStandalonePWA = false }:
               body: JSON.stringify({ url: localUrl, anonKey: localKey })
             });
           }
+
+          // Force client-side Supabase client instance bindings to evaluate correctly
+          initializeSupabase();
         }
       } catch (err) {
         console.warn("Failed to retrieve Supabase active configuration from server:", err);
@@ -705,6 +708,9 @@ export default function AdminPanel({ isOpen, onClose, isStandalonePWA = false }:
     // Clean up residual orders keys to be fully clean
     safeLocalStorage.removeItem("VITE_SUPABASE_URL_ORDERS");
     safeLocalStorage.removeItem("VITE_SUPABASE_ANON_KEY_ORDERS");
+
+    // Immediately re-initialize in-memory singleton
+    initializeSupabase();
 
     try {
       await fetch("/api/supabase-config", {
@@ -732,6 +738,9 @@ export default function AdminPanel({ isOpen, onClose, isStandalonePWA = false }:
     safeLocalStorage.removeItem("VITE_SUPABASE_ANON_KEY_ORDERS");
     setManualSupabaseUrl("");
     setManualSupabaseKey("");
+
+    // Immediately reset in-memory singleton
+    initializeSupabase();
 
     try {
       await fetch("/api/supabase-config", {
@@ -1359,7 +1368,7 @@ export default function AdminPanel({ isOpen, onClose, isStandalonePWA = false }:
         ordersSubscription.unsubscribe();
       }
     };
-  }, []);
+  }, [manualSupabaseUrl, manualSupabaseKey]);
 
   // Real-time synchronization when orders or notifications are added/modified via localStorage events
   useEffect(() => {

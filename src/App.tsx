@@ -16,12 +16,12 @@ import CheckoutModal from "./components/CheckoutModal";
 import AdminPanel from "./components/AdminPanel";
 import { useContent } from "./context/ContentContext";
 import { safeLocalStorage, safeSessionStorage } from "./utils/safeStorage";
-import { isSupabaseConfigured, supabase, isSupabaseOrdersConfigured, supabaseOrders } from "./lib/supabase";
+import { isSupabaseConfigured, supabase, isSupabaseOrdersConfigured, supabaseOrders, initializeSupabase } from "./lib/supabase";
 
 export default function App() {
   const { isLoading, logoUrl, headerBranding } = useContent();
 
-  // Auto-sync Supabase configuration from the server on startup
+  // Auto-sync Supabase configuration from the server on startup or dynamic backport
   useEffect(() => {
     const autoSyncSupabase = async () => {
       try {
@@ -35,24 +35,41 @@ export default function App() {
           const localSupaUrl = (safeLocalStorage.getItem("VITE_SUPABASE_URL") || "").trim();
           const localSupaKey = (safeLocalStorage.getItem("VITE_SUPABASE_ANON_KEY") || "").trim();
           
-          if (serverUrl !== localSupaUrl || serverKey !== localSupaKey) {
-            if (serverUrl) {
-              safeLocalStorage.setItem("VITE_SUPABASE_URL", serverUrl);
-            } else {
-              safeLocalStorage.removeItem("VITE_SUPABASE_URL");
+          // Case 1: Server matches client exactly
+          if (serverUrl === localSupaUrl && serverKey === localSupaKey) {
+            initializeSupabase();
+            return;
+          }
+
+          // Case 2: Server is empty, but Client has keys (We self-repair and backport!)
+          if (!serverUrl && !serverKey && (localSupaUrl && localSupaKey)) {
+            console.log("Auto-backporting local Supabase credentials from client to server to self-heal connection...");
+            try {
+              await fetch("/api/supabase-config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: localSupaUrl, anonKey: localSupaKey })
+              });
+              initializeSupabase();
+            } catch (e) {
+              console.warn("Auto-backporting failed:", e);
             }
+            return;
+          }
+
+          // Case 3: Server has keys, but Client is empty (We download and initialize!)
+          if (serverUrl && serverKey) {
+            console.log("Downloading active Supabase credentials from server to browser local storage...");
+            safeLocalStorage.setItem("VITE_SUPABASE_URL", serverUrl);
+            safeLocalStorage.setItem("VITE_SUPABASE_ANON_KEY", serverKey);
             
-            if (serverKey) {
-              safeLocalStorage.setItem("VITE_SUPABASE_ANON_KEY", serverKey);
-            } else {
-              safeLocalStorage.removeItem("VITE_SUPABASE_ANON_KEY");
-            }
-            
-            // Remove residual old orders config as clean up
+            // Remove residual old config
             safeLocalStorage.removeItem("VITE_SUPABASE_URL_ORDERS");
             safeLocalStorage.removeItem("VITE_SUPABASE_ANON_KEY_ORDERS");
             
-            console.log("Supabase active configuration synced from server. Reloading to apply...");
+            initializeSupabase();
+            
+            console.log("Re-initializing Supabase and reloading once to fully apply connected state...");
             window.location.reload();
           }
         }
