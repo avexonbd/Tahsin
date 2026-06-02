@@ -53,7 +53,59 @@ if (typeof window !== "undefined") {
         } catch (_) {}
       }
 
-      // Fallback 2: Resolve from import.meta.url (Vite bundle origin - extremely resilient inside sandboxed frames!)
+      // Fallback 2: Resolve from document.URL or baseURI (these never block or throw cross-origin SecurityErrors in sandboxed iframes!)
+      if (!absoluteBaseUrl) {
+        try {
+          const docUrl = document.URL || document.baseURI;
+          if (docUrl && docUrl.startsWith("http")) {
+            const match = docUrl.match(/^(https?:\/\/[^\/]+)/);
+            if (match) absoluteBaseUrl = match[1];
+          }
+        } catch (_) {}
+      }
+
+      // Fallback 3: Search DOM tags (scripts and stylesheets) for active .run.app hosting URLs
+      if (!absoluteBaseUrl) {
+        try {
+          const runAppRegex = /^(https?:\/\/[a-z0-9\-]+\.asia-southeast1\.run\.app)/i;
+          const scripts = document.getElementsByTagName("script");
+          for (let i = 0; i < scripts.length; i++) {
+            const src = scripts[i].src;
+            if (src) {
+              const match = src.match(runAppRegex);
+              if (match) {
+                absoluteBaseUrl = match[1];
+                break;
+              }
+            }
+          }
+          if (!absoluteBaseUrl) {
+            const links = document.getElementsByTagName("link");
+            for (let i = 0; i < links.length; i++) {
+              const href = links[i].href;
+              if (href) {
+                const match = href.match(runAppRegex);
+                if (match) {
+                  absoluteBaseUrl = match[1];
+                  break;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Fallback 4: Hardcoded system configuration parameters specifically matching this live preview sandbox run!
+      if (!absoluteBaseUrl) {
+        try {
+          const containerId = "qhtnahjcoewh7a534a7msh-482860741721";
+          const isPre = document.referrer && document.referrer.includes("-pre-");
+          const mode = isPre ? "pre" : "dev";
+          absoluteBaseUrl = `https://ais-${mode}-${containerId}.asia-southeast1.run.app`;
+        } catch (_) {}
+      }
+
+      // Fallback 5: Resolve from import.meta.url (Vite bundle origin - extremely resilient inside sandboxed frames!)
       if (!absoluteBaseUrl) {
         try {
           const metaUrl = import.meta.url;
@@ -64,11 +116,11 @@ if (typeof window !== "undefined") {
         } catch (_) {}
       }
 
-      // Fallback 3: Resolve from document.referrer
+      // Fallback 6: Resolve from document.referrer
       if (!absoluteBaseUrl) {
         try {
           const referrer = document.referrer;
-          if (referrer && referrer.startsWith("http")) {
+          if (referrer && referrer.startsWith("http") && !referrer.includes("ai.studio")) {
             const match = referrer.match(/^(https?:\/\/[^\/]+)/);
             if (match) absoluteBaseUrl = match[1];
           }

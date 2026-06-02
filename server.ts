@@ -604,6 +604,18 @@ app.get("/api/orders", async (req, res) => {
             // Case 4: Fallback
             return row.value || row;
           }).filter(Boolean);
+
+          // Sort orders chronologically (newest first)
+          ordersList.sort((a: any, b: any) => {
+            const dateA = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            if (isNaN(dateA) || isNaN(dateB) || dateA === dateB) {
+              const idA = a && a.id ? String(a.id) : "";
+              const idB = b && b.id ? String(b.id) : "";
+              return idB.localeCompare(idA);
+            }
+            return dateB - dateA;
+          });
           fetchedFromSupabase = true;
         } else {
           console.warn("avexon_orders table select query failed. Attempting legacy avexon_content table sync...");
@@ -620,6 +632,17 @@ app.get("/api/orders", async (req, res) => {
 
           if (!legacyError && legacyData && Array.isArray(legacyData.value)) {
             ordersList = legacyData.value;
+            // Sort legacy orders chronologically (newest first)
+            ordersList.sort((a: any, b: any) => {
+              const dateA = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const dateB = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              if (isNaN(dateA) || isNaN(dateB) || dateA === dateB) {
+                const idA = a && a.id ? String(a.id) : "";
+                const idB = b && b.id ? String(b.id) : "";
+                return idB.localeCompare(idA);
+              }
+              return dateB - dateA;
+            });
             fetchedFromSupabase = true;
             
             // Seed the flat orders table in background silently
@@ -656,7 +679,18 @@ app.get("/api/orders", async (req, res) => {
       const fileData = fs.readFileSync(ORDERS_DB_FILE, "utf-8");
       try {
         const parsed = JSON.parse(fileData);
-        return res.json({ success: true, data: Array.isArray(parsed) ? parsed : [] });
+        const list = Array.isArray(parsed) ? parsed : [];
+        list.sort((a: any, b: any) => {
+          const dateA = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (isNaN(dateA) || isNaN(dateB) || dateA === dateB) {
+            const idA = a && a.id ? String(a.id) : "";
+            const idB = b && b.id ? String(b.id) : "";
+            return idB.localeCompare(idA);
+          }
+          return dateB - dateA;
+        });
+        return res.json({ success: true, data: list });
       } catch (parseErr) {
         console.error("Local file orders_db.json is corrupted:", parseErr);
         return res.json({ success: true, data: [] });
@@ -670,7 +704,19 @@ app.get("/api/orders", async (req, res) => {
       if (fs.existsSync(ORDERS_DB_FILE)) {
         try {
           const fileData = fs.readFileSync(ORDERS_DB_FILE, "utf-8");
-          return res.json({ success: true, data: JSON.parse(fileData) });
+          const parsed = JSON.parse(fileData);
+          const list = Array.isArray(parsed) ? parsed : [];
+          list.sort((a: any, b: any) => {
+            const dateA = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            if (isNaN(dateA) || isNaN(dateB) || dateA === dateB) {
+              const idA = a && a.id ? String(a.id) : "";
+              const idB = b && b.id ? String(b.id) : "";
+              return idB.localeCompare(idA);
+            }
+            return dateB - dateA;
+          });
+          return res.json({ success: true, data: list });
         } catch (_) {}
       }
       res.status(500).json({ success: false, error: err.message, data: [] });
@@ -704,6 +750,18 @@ app.post("/api/orders", async (req, res) => {
     } else {
       ordersList.unshift(incomingOrder); // Add brand new orders to the very top
     }
+
+    // Always sort the full local backup before writing to disk
+    ordersList.sort((a: any, b: any) => {
+      const dateA = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (isNaN(dateA) || isNaN(dateB) || dateA === dateB) {
+        const idA = a && a.id ? String(a.id) : "";
+        const idB = b && b.id ? String(b.id) : "";
+        return idB.localeCompare(idA);
+      }
+      return dateB - dateA;
+    });
 
     // Write copy locally to disk - super fast, done in < 1ms
     fs.writeFileSync(ORDERS_DB_FILE, JSON.stringify(ordersList, null, 2), "utf-8");
